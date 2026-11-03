@@ -173,9 +173,10 @@ class Updater:
             self.save()
 
     def healthcheck(self, site):
+        self.command("exec", "-T", "backend", "./env/bin/python", "-c", deployment.ASSET_CHECK)
         for _ in range(30):
             try:
-                # Execute a read-only DB check through Frappe; HTTP health is checked after maintenance is disabled.
+                # Check the database through Frappe while maintenance remains enabled.
                 self.command("exec", "-T", "backend", "bench", "--site", site, "execute", "frappe.db.sql",
                              "--args", '["select 1"]')
                 return
@@ -192,9 +193,9 @@ class Updater:
         return self.status()
 
 
-def main():
+def main(root=ROOT):
     os.umask(0o077)
-    updater = Updater()
+    updater = Updater(root)
     class Handler(socketserver.StreamRequestHandler):
         def handle(self):
             self.request.settimeout(15)

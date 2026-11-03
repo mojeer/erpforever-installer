@@ -10,6 +10,15 @@ ROOT = Path("/opt/erpforever")
 MARIADB_IMAGE = "mariadb@sha256:c4124d1afa875e47f2892edf26b482fa54f796e2f342d3717a04ca091a22a9bd"
 REDIS_IMAGE = "redis@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f"
 CADDY_IMAGE = "caddy@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5"
+# A successful SQL query does not establish that the browser can load Frappe.
+# Run this in the bench directory both at image build and before ending maintenance.
+ASSET_CHECK = (
+    "import json; from pathlib import Path; p=Path('sites/assets'); "
+    "d=json.loads((p/'assets.json').read_text()); d.update(json.loads((p/'assets-rtl.json').read_text())); "
+    "keys=['website.bundle.css','login.bundle.css','frappe-web.bundle.js','desk.bundle.js','rtl_desk.bundle.css']; "
+    "assert all(d.get(k,'').startswith('/assets/') and Path('sites'+d[k]).is_file() for k in keys), "
+    "'Missing core browser bundles'"
+)
 
 
 def private_write(path, value):
@@ -50,7 +59,7 @@ USER root
 COPY --chown=1000:0 app /home/frappe/frappe-bench/apps/erpforever
 USER frappe
 WORKDIR /home/frappe/frappe-bench
-RUN ./env/bin/pip install --no-deps -e apps/erpforever && printf '\\nerpforever\\n' >> sites/apps.txt && bench build --app erpforever && if [ ! -L sites/assets ]; then cp -a sites/assets/. assets/; rm -rf sites/assets; ln -s ../assets sites/assets; fi
+RUN ./env/bin/pip install --no-deps -e apps/erpforever && printf '\\nerpforever\\n' >> sites/apps.txt && if [ ! -L sites/assets ]; then rm -rf sites/assets; ln -s ../assets sites/assets; fi && bench build --app erpforever && ./env/bin/python -c "{ASSET_CHECK}"
 ''')
     # JSON is valid YAML; generation through json.dumps prevents YAML injection.
     volumes = ["sites:/home/frappe/frappe-bench/sites", "logs:/home/frappe/frappe-bench/logs"]
